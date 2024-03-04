@@ -4,3 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+
+[dev-dependencies]
+slotmap = "1.0.7"
+indexmap = "2.2.5"
+criterion = { version = "0.5.1", feature = ["html-reports"] }
+
+[[bench]]
+name = "slotmap_vs_indexmap"
+harness = false
