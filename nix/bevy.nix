@@ -1,6 +1,7 @@
 { inputs, ... }: {
   perSystem = { pkgs, system, ... }:
     let
+      upkgs = import inputs.unstable { inherit system; };
       fnx = inputs.fenix.packages.${system};
       mkName = name: "Bevy (" + name + ") dev shell";
       mkRustDeriv = fnx-version: extra-components:
@@ -30,6 +31,8 @@
         pkgs.wayland
         pkgs.libxkbcommon
         pkgs.openssl
+
+        upkgs.cargo-wizard
       ];
       nightlyPkgs = [ ];
 
