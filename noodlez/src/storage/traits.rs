@@ -3,13 +3,7 @@ use super::{
     node::NodeId,
 };
 
-pub trait EdgeObject {
-    fn weight(&self) -> f32;
-    fn flow(&self) -> f32;
-    fn flow_capacity(&self) -> f32;
-}
-
-pub trait GraphStorage<N, E: EdgeObject>
+pub trait GraphStorage<N, E>
 where
     Self: Sized,
 {

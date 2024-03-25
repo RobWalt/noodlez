@@ -5,7 +5,7 @@ use slotmap::{SecondaryMap, SlotMap};
 use crate::storage::{
     edge::{EdgeEnds, EdgeId, InternalEdgeID},
     node::{InternalNodeID, NodeId},
-    traits::{EdgeObject, GraphStorage},
+    traits::GraphStorage,
 };
 
 #[derive(Debug, Clone)]
@@ -31,7 +31,7 @@ impl<N, E> Default for Graph<N, E> {
     }
 }
 
-impl<N, E: EdgeObject> GraphStorage<N, E> for Graph<N, E> {
+impl<N, E> GraphStorage<N, E> for Graph<N, E> {
     fn add_node(&mut self, node: N) -> NodeId<Self> {
         let id = self.nodes.insert(node);
         NodeId::new(id)
