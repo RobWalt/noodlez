@@ -16,7 +16,7 @@ impl<G> NodeId<G> {
     pub(crate) fn new(id: InternalNodeID) -> Self {
         Self {
             id,
-            _pd: Default::default(),
+            _pd: PhantomData,
         }
     }
 
@@ -28,10 +28,7 @@ impl<G> NodeId<G> {
 
 impl<G> Clone for NodeId<G> {
     fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            _pd: PhantomData,
-        }
+        *self
     }
 }
 
@@ -42,3 +39,11 @@ impl<G> Debug for NodeId<G> {
         write!(f, "[N {id:?}]", id = self.id.0)
     }
 }
+
+impl<G> PartialEq for NodeId<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+
+impl<G> Eq for NodeId<G> {}

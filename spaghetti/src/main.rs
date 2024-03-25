@@ -201,11 +201,11 @@ pub struct EdgeMid(Vec2);
 pub struct ConnectedEdges(Vec<Entity>);
 
 fn spawn_edge(
-    mut clicked_node: Query<(Entity, &Node, &mut ConnectedEdges, &BevyNodeId), With<NodeSelected>>,
+    mut clicked_node: Query<(Entity, &mut ConnectedEdges, &BevyNodeId), With<NodeSelected>>,
     mut commands: Commands,
     mut graph: ResMut<BevyGraph>,
 ) {
-    let [(a, a_pos, mut a_edges, a_id), (b, b_pos, mut b_edges, b_id)] = clicked_node
+    let [(a, mut a_edges, a_id), (b, mut b_edges, b_id)] = clicked_node
         .iter_mut()
         .take(2)
         .collect::<Vec<_>>()
@@ -220,7 +220,6 @@ fn spawn_edge(
             BevyEdgeId(id),
             EdgeFrom(a),
             EdgeTo(b),
-            EdgeMid((**a_pos + **b_pos) * 0.5),
         ))
         .id();
 
@@ -229,6 +228,20 @@ fn spawn_edge(
 
     commands.entity(a).remove::<NodeSelected>();
     commands.entity(b).remove::<NodeSelected>();
+}
+
+fn register_edge_in_nodes(
+    edges: Query<(Entity, &EdgeFrom, &EdgeTo), Or<(Added<EdgeFrom>, Added<EdgeTo>)>>,
+    mut nodes: Query<&mut ConnectedEdges>,
+) {
+    edges.iter().for_each(|(edge, EdgeFrom(from), EdgeTo(to))| {
+        if let Ok(mut node) = nodes.get_mut(*from) {
+            node.push(edge);
+        }
+        if let Ok(mut node) = nodes.get_mut(*to) {
+            node.push(edge);
+        }
+    })
 }
 
 // fn render_edges(
