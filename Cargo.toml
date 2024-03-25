@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+miette = { version = "7.2.0", features = ["fancy"] }
+slotmap = "1.0.7"
+thiserror = "1.0.58"
 
 [dev-dependencies]
 slotmap = "1.0.7"
