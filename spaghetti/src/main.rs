@@ -7,7 +7,10 @@ use bevy::{
     sprite::MaterialMesh2dBundle,
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_mod_picking::{selection::PickSelection, DefaultPickingPlugins, PickableBundle};
+use bevy_mod_picking::{
+    picking_core::Pickable, pointer::PointerInteraction, selection::PickSelection,
+    DefaultPickingPlugins, PickableBundle,
+};
 use noodlez::{
     prelude::*,
     storage::{edge::EdgeId, node::NodeId},
@@ -25,25 +28,84 @@ fn main() {
         .init_resource::<BevyGraph>()
         .add_systems(Startup, setup_camera_2d)
         .add_systems(Startup, setup_plane)
-        .add_systems(Update, spawn_node.run_if(input_just_pressed(KeyCode::KeyN)))
+        .add_systems(
+            Update,
+            spawn_node.run_if(
+                in_state(AppState::SpawnNodes).and_then(input_just_pressed(MouseButton::Left)),
+            ),
+        )
         .add_systems(Update, move_nodes.run_if(any_are_near))
         .add_systems(Update, position_to_transform)
         .add_systems(Update, add_node_to_graph)
         .add_systems(Update, select_node)
+        .add_systems(Update, change_app_state)
         .add_systems(
             Update,
             apply_mouse_movements_to_nodes
                 .run_if(input_pressed(KeyCode::Space).and_then(any_with_component::<NodeSelected>)),
         )
+        .init_state::<AppState>()
         .add_systems(
             Update,
-            spawn_edge.run_if(
-                not(input_pressed(KeyCode::ControlLeft))
-                    .and_then(|q: Query<(), With<NodeSelected>>| q.iter().count() == 2),
+            (
+                add_pickable.run_if(in_state(AppState::SpawnEdges)),
+                add_pickable.run_if(in_state(AppState::Select)),
+                remove_pickable.run_if(in_state(AppState::SpawnNodes)),
+            )
+                .run_if(state_changed::<AppState>),
+        )
+        .add_systems(
+            Update,
+            (
+                spawn_edge.run_if(input_just_pressed(MouseButton::Left)),
+                register_edge_in_nodes,
+            )
+                .run_if(in_state(AppState::SpawnEdges)),
+        )
+        .add_systems(
+            Update,
+            (
+                init_edge_curve,
+                render_edges,
+                update_edges_from_positions,
+                update_edges_to_positions,
             ),
         )
-        .add_systems(Update, render_edges)
         .run();
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, States)]
+pub enum AppState {
+    #[default]
+    Select,
+    SpawnNodes,
+    SpawnEdges,
+}
+
+impl AppState {
+    pub fn from_keys(key: KeyCode) -> Option<Self> {
+        match key {
+            KeyCode::KeyN => Some(Self::SpawnNodes),
+            KeyCode::KeyE => Some(Self::SpawnEdges),
+            KeyCode::KeyS => Some(Self::Select),
+            _ => None,
+        }
+    }
+}
+
+fn change_app_state(
+    keys: Res<ButtonInput<KeyCode>>,
+    state: Res<State<AppState>>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if let Some(next) = keys
+        .get_just_pressed()
+        .filter_map(|key| AppState::from_keys(*key))
+        .filter(|new_state| state.get() != new_state)
+        .next()
+    {
+        next_state.set(next);
+    }
 }
 
 #[derive(Debug, Resource, Deref, DerefMut, Default)]
@@ -85,6 +147,9 @@ fn get_mouse_position(window: &Window) -> Vec2 {
         })
 }
 
+#[derive(Debug, Clone, Component, Default, Reflect)]
+pub struct ShouldBePickable;
+
 fn spawn_node(
     mut commands: Commands,
     mut mesh: ResMut<Assets<Mesh>>,
@@ -112,8 +177,27 @@ fn spawn_node(
             transform: Transform::from_translation(mouse_location.extend(1.0)),
             ..Default::default()
         },
-        PickableBundle::default(),
+        ConnectedEdges::default(),
+        ShouldBePickable,
     ));
+}
+
+fn add_pickable(
+    mut commands: Commands,
+    pickables: Query<Entity, (With<ShouldBePickable>, Without<Pickable>)>,
+) {
+    pickables.iter().for_each(|e| {
+        commands.entity(e).insert(PickableBundle::default());
+    });
+}
+
+fn remove_pickable(
+    mut commands: Commands,
+    pickables: Query<Entity, (With<ShouldBePickable>, With<Pickable>)>,
+) {
+    pickables.iter().for_each(|e| {
+        commands.entity(e).remove::<PickableBundle>();
+    });
 }
 
 fn any_are_near(nodes: Query<&Node>) -> bool {
@@ -153,11 +237,9 @@ fn add_node_to_graph(
 ) {
     new_nodes.iter().for_each(|(n, p)| {
         let id = graph.add_node(**p);
-        commands.entity(n).insert((
-            Name::new(format!("{id:?}")),
-            BevyNodeId(id),
-            ConnectedEdges::default(),
-        ));
+        commands
+            .entity(n)
+            .insert((Name::new(format!("{id:?}")), BevyNodeId(id)));
     })
 }
 
@@ -167,6 +249,7 @@ pub struct NodeSelected;
 fn select_node(
     mut commands: Commands,
     q_node: Query<(Entity, &PickSelection), (With<Node>, Changed<PickSelection>)>,
+    q_prev_selected: Query<Entity, With<NodeSelected>>,
 ) {
     q_node.iter().for_each(|(n, s)| {
         if s.is_selected {
@@ -174,7 +257,11 @@ fn select_node(
         } else {
             commands.entity(n).remove::<NodeSelected>();
         }
-    })
+
+        q_prev_selected.iter().for_each(|sel| {
+            commands.entity(sel).remove::<NodeSelected>();
+        })
+    });
 }
 
 fn apply_mouse_movements_to_nodes(
@@ -201,33 +288,29 @@ pub struct EdgeMid(Vec2);
 pub struct ConnectedEdges(Vec<Entity>);
 
 fn spawn_edge(
-    mut clicked_node: Query<(Entity, &mut ConnectedEdges, &BevyNodeId), With<NodeSelected>>,
+    q_selected_node: Query<(Entity, &BevyNodeId), With<NodeSelected>>,
+    q_unselected_node: Query<(Entity, &BevyNodeId), Without<NodeSelected>>,
+    q_pointer: Query<&PointerInteraction>,
     mut commands: Commands,
     mut graph: ResMut<BevyGraph>,
 ) {
-    let [(a, mut a_edges, a_id), (b, mut b_edges, b_id)] = clicked_node
-        .iter_mut()
-        .take(2)
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
+    if let Some((e, _hit)) = q_pointer.single().get_nearest_hit() {
+        if let Ok((to, to_id)) = q_unselected_node.get(*e) {
+            if let Ok((from, from_id)) = q_selected_node.get_single() {
+                let id = graph.add_edge(from_id.0, to_id.0, ()).unwrap();
 
-    let id = graph.add_edge(a_id.0, b_id.0, ()).unwrap();
+                commands.spawn((
+                    Name::new(format!("{id:?}")),
+                    BevyEdgeId(id),
+                    EdgeFrom(from),
+                    EdgeTo(to),
+                ));
 
-    let e = commands
-        .spawn((
-            Name::new(format!("{id:?}")),
-            BevyEdgeId(id),
-            EdgeFrom(a),
-            EdgeTo(b),
-        ))
-        .id();
-
-    a_edges.push(e);
-    b_edges.push(e);
-
-    commands.entity(a).remove::<NodeSelected>();
-    commands.entity(b).remove::<NodeSelected>();
+                commands.entity(from).remove::<NodeSelected>();
+                commands.entity(to).remove::<NodeSelected>();
+            }
+        }
+    }
 }
 
 fn register_edge_in_nodes(
@@ -244,16 +327,65 @@ fn register_edge_in_nodes(
     })
 }
 
-// fn render_edges(
-//     mut gizmos: Gizmos,
-//     nodes: Query<&Node>,
-//     edges: Query<(&EdgeFrom, &EdgeMid, &EdgeTo)>,
-// ) {
-//     edges
-//         .iter()
-//         .for_each(|(EdgeFrom(a), EdgeMid(mid), EdgeTo(b))| {
-//             let a = nodes.get(*a).unwrap().0;
-//             let b = nodes.get(*b).unwrap().0;
-//             gizmos.line_2d(a, b, Color::CRIMSON);
-//         })
-// }
+#[derive(Debug, Clone, Component, Deref, DerefMut, Default, Reflect)]
+pub struct EdgeCurveFrom(Vec2);
+#[derive(Debug, Clone, Component, Deref, DerefMut, Default, Reflect)]
+pub struct EdgeCurveMid(Vec2);
+#[derive(Debug, Clone, Component, Deref, DerefMut, Default, Reflect)]
+pub struct EdgeCurveTo(Vec2);
+
+fn init_edge_curve(
+    edges: Query<(Entity, &EdgeFrom, &EdgeTo), Or<(Added<EdgeFrom>, Added<EdgeTo>)>>,
+    nodes: Query<&Node>,
+    mut commands: Commands,
+) {
+    edges.iter().for_each(|(e, EdgeFrom(from), EdgeTo(to))| {
+        let from = nodes.get(*from).unwrap().0;
+        let to = nodes.get(*to).unwrap().0;
+        let mid = (from + to) * 0.5;
+        commands
+            .entity(e)
+            .insert((EdgeCurveFrom(from), EdgeCurveMid(mid), EdgeCurveTo(to)));
+    });
+}
+
+fn update_edges_from_positions(
+    changed_node: Query<(Entity, &Node, &ConnectedEdges), Changed<Node>>,
+    mut edge_forms: Query<(&EdgeFrom, &mut EdgeCurveFrom)>,
+) {
+    changed_node.iter().for_each(|(node, new_pos, connected)| {
+        connected.iter().copied().for_each(|e| {
+            if let Some((_, mut edge_pos)) = edge_forms
+                .get_mut(e)
+                .ok()
+                .filter(|(EdgeFrom(e), _)| e == &node)
+            {
+                **edge_pos = **new_pos;
+            }
+        });
+    });
+}
+
+fn update_edges_to_positions(
+    changed_node: Query<(Entity, &Node, &ConnectedEdges), Changed<Node>>,
+    mut edge_tos: Query<(&EdgeTo, &mut EdgeCurveTo)>,
+) {
+    changed_node.iter().for_each(|(node, new_pos, connected)| {
+        connected.iter().copied().for_each(|e| {
+            if let Some((_, mut edge_pos)) =
+                edge_tos.get_mut(e).ok().filter(|(EdgeTo(e), _)| e == &node)
+            {
+                **edge_pos = **new_pos;
+            }
+        });
+    });
+}
+
+fn render_edges(mut gizmos: Gizmos, edges: Query<(&EdgeCurveFrom, &EdgeCurveMid, &EdgeCurveTo)>) {
+    edges.iter().for_each(
+        |(EdgeCurveFrom(from), EdgeCurveMid(mid), EdgeCurveTo(to))| {
+            let curve = CubicBezier::new(vec![[*from, *mid, *mid, *to]]).to_curve();
+            gizmos.linestrip_2d(curve.iter_positions(10), Color::CRIMSON);
+        },
+    )
+}
