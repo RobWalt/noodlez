@@ -1,26 +1,16 @@
-[package]
-name = "noodlez"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "2"
+members = [
+  "noodlez",
+  "benchmarks"
+]
 
-[dependencies]
+[workspace.dependencies]
+noodlez = { path = "./noodlez" }
+
+criterion = { version = "0.5.1", feature = ["html-reports"] }
+indexmap = "2.2.5"
 miette = { version = "7.2.0", features = ["fancy"] }
+petgraph = "0.6.4"
 slotmap = "1.0.7"
 thiserror = "1.0.58"
-
-[dev-dependencies]
-slotmap = "1.0.7"
-indexmap = "2.2.5"
-petgraph = "0.6.4"
-criterion = { version = "0.5.1", feature = ["html-reports"] }
-
-[[bench]]
-name = "slotmap_vs_indexmap"
-harness = false
-
-[[bench]]
-name = "petgraph_baseline"
-harness = false
-
-[profile.dev]
-debug = 0

@@ -1,0 +1,18 @@
+[package]
+name = "benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slotmap.workspace = true
+indexmap.workspace = true
+petgraph.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "slotmap_vs_indexmap"
+harness = false
+
+[[bench]]
+name = "petgraph_baseline"
+harness = false
