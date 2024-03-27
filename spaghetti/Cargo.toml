@@ -9,4 +9,5 @@ edition = "2021"
 bevy.workspace = true
 bevy-inspector-egui.workspace = true
 bevy_mod_picking.workspace = true
+bevy_prototype_lyon.workspace = true
 noodlez.workspace = true
