@@ -124,16 +124,18 @@ impl BevyGraphEdgePlugin {
 
     fn update_edges_from_positions(
         changed_node: Query<(Entity, &BevyNode, &OutgoingEdges), Changed<BevyNode>>,
-        mut edge_forms: Query<(&EdgeFrom, &mut EdgeFromPosition)>,
+        mut edge_forms: Query<(&EdgeFrom, &mut EdgeFromPosition, &mut EdgeMidPosition)>,
     ) {
         changed_node.iter().for_each(|(node, new_pos, connected)| {
             connected.iter().copied().for_each(|e| {
-                if let Some((_, mut edge_pos)) = edge_forms
+                if let Some((_, mut edge_pos, mut edge_mid)) = edge_forms
                     .get_mut(e)
                     .ok()
-                    .filter(|(EdgeFrom(e), _)| e == &node)
+                    .filter(|(EdgeFrom(e), _, _)| e == &node)
                 {
+                    let delta = **new_pos - **edge_pos;
                     **edge_pos = **new_pos;
+                    **edge_mid += delta;
                 }
             });
         });
@@ -141,14 +143,18 @@ impl BevyGraphEdgePlugin {
 
     fn update_edges_to_positions(
         changed_node: Query<(Entity, &BevyNode, &IncomingEdges), Changed<BevyNode>>,
-        mut edge_tos: Query<(&EdgeTo, &mut EdgeToPosition)>,
+        mut edge_tos: Query<(&EdgeTo, &mut EdgeToPosition, &mut EdgeMidPosition)>,
     ) {
         changed_node.iter().for_each(|(node, new_pos, connected)| {
             connected.iter().copied().for_each(|e| {
-                if let Some((_, mut edge_pos)) =
-                    edge_tos.get_mut(e).ok().filter(|(EdgeTo(e), _)| e == &node)
+                if let Some((_, mut edge_pos, mut edge_mid)) = edge_tos
+                    .get_mut(e)
+                    .ok()
+                    .filter(|(EdgeTo(e), _, _)| e == &node)
                 {
+                    let delta = **new_pos - **edge_pos;
                     **edge_pos = **new_pos;
+                    **edge_mid += delta;
                 }
             });
         });
