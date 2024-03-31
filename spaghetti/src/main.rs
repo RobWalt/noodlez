@@ -1,3 +1,4 @@
+pub(crate) mod algorithms;
 pub(crate) mod appstate;
 pub(crate) mod bevy_graph;
 pub(crate) mod common_conditions;
@@ -19,6 +20,7 @@ fn main() {
             appstate::AppStatePlugin,
             external_graph::ExternalGraphPlugin,
             bevy_graph::BevyGraphPlugin,
+            algorithms::BevyGraphAlgorithmPlugin,
         ))
         .run();
 }

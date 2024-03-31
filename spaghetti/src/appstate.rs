@@ -16,6 +16,7 @@ pub enum AppState {
     Select,
     SpawnNodes,
     SpawnEdges,
+    DFS,
 }
 
 impl AppState {
@@ -24,6 +25,7 @@ impl AppState {
             KeyCode::KeyN => Some(Self::SpawnNodes),
             KeyCode::KeyE => Some(Self::SpawnEdges),
             KeyCode::KeyS => Some(Self::Select),
+            KeyCode::KeyD => Some(Self::DFS),
             _ => None,
         }
     }

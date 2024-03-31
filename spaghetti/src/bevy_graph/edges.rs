@@ -5,7 +5,7 @@ use crate::appstate::AppState;
 
 use super::{
     interaction::NodeSelected,
-    nodes::{BevyNode, IncomingEdges, OutgoingEdges},
+    nodes::{BevyNode, IncomingEdges, NextNodes, OutgoingEdges, PreviousNodes},
 };
 
 pub struct BevyGraphEdgePlugin;
@@ -26,6 +26,8 @@ impl Plugin for BevyGraphEdgePlugin {
                     ),
                     Self::register_outgoing_edge_connections,
                     Self::register_incoming_edge_connections,
+                    Self::register_next_nodes,
+                    Self::register_previous_nodes,
                     Self::init_edge_from_position,
                     Self::init_edge_to_position,
                     Self::init_edge_mid_position,
@@ -86,6 +88,28 @@ impl BevyGraphEdgePlugin {
                 node.push(edge);
             }
         })
+    }
+
+    fn register_next_nodes(
+        edges: Query<(&EdgeFrom, &EdgeTo), Added<EdgeTo>>,
+        mut nodes: Query<&mut NextNodes>,
+    ) {
+        edges.iter().for_each(|(EdgeFrom(from), EdgeTo(to))| {
+            if let Ok(mut node) = nodes.get_mut(*from) {
+                node.push(*to);
+            }
+        });
+    }
+
+    fn register_previous_nodes(
+        edges: Query<(&EdgeFrom, &EdgeTo), Added<EdgeFrom>>,
+        mut nodes: Query<&mut PreviousNodes>,
+    ) {
+        edges.iter().for_each(|(EdgeFrom(from), EdgeTo(to))| {
+            if let Ok(mut node) = nodes.get_mut(*to) {
+                node.push(*from);
+            }
+        });
     }
 
     fn init_edge_from_position(

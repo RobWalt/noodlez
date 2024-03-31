@@ -64,6 +64,7 @@ impl BevyGraphPickingPlugin {
             commands.entity(node).insert(ShouldBePickableIn(vec![
                 AppState::SpawnEdges,
                 AppState::Select,
+                AppState::DFS,
             ]));
         });
     }

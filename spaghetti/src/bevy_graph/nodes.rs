@@ -9,6 +9,8 @@ impl Plugin for BevyGraphNodePlugins {
         app.register_type::<BevyNode>()
             .register_type::<OutgoingEdges>()
             .register_type::<IncomingEdges>()
+            .register_type::<NextNodes>()
+            .register_type::<PreviousNodes>()
             .add_systems(
                 Update,
                 Self::spawn_node.run_if(
@@ -29,6 +31,12 @@ pub struct OutgoingEdges(Vec<Entity>);
 #[derive(Debug, Component, Default, Deref, DerefMut, Reflect)]
 pub struct IncomingEdges(Vec<Entity>);
 
+#[derive(Debug, Component, Deref, DerefMut, Default, Reflect)]
+pub struct NextNodes(Vec<Entity>);
+
+#[derive(Debug, Component, Deref, DerefMut, Default, Reflect)]
+pub struct PreviousNodes(Vec<Entity>);
+
 impl BevyGraphNodePlugins {
     fn spawn_node(mut commands: Commands, window: Query<&Window>) {
         let window = window.single();
@@ -38,6 +46,8 @@ impl BevyGraphNodePlugins {
             BevyNode(mouse_location),
             OutgoingEdges::default(),
             IncomingEdges::default(),
+            NextNodes::default(),
+            PreviousNodes::default(),
         ));
     }
 }

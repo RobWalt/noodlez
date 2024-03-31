@@ -7,7 +7,10 @@ edition = "2021"
 
 [dependencies]
 bevy.workspace = true
+
 bevy-inspector-egui.workspace = true
+bevy_eventlistener.workspace = true
 bevy_mod_picking.workspace = true
 bevy_prototype_lyon.workspace = true
+
 noodlez.workspace = true
